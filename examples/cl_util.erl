@@ -49,7 +49,7 @@ data_desc(Data, TypeSize, Opt) ->
 %% @doc Create a set of buffers in main mem from a list of data descriptors.
 %%------------------------------------------------------------------------------
 create_buffer_desc(Context, Data, DataSize, Opt) ->
-  {ok, Buffer} = cl:create_buffer(Context, Data, Opt),
+  {ok, Buffer} = cl:create_buffer(Context, Opt, DataSize),
   {buffer_desc, Buffer,  Data, DataSize}.
 
 create_buffers(Context, DataDescriptors) ->

@@ -8,13 +8,14 @@ test() ->
   {cl, Platform, Devices, Context} = clu:setup(all),
   KernelSource = cl_mult_kernel:source(),
   KernelDataDescriptors = cl_mult_kernel:data_descriptors(),
-  {ok, Kernel} = cl_util:build_kernel(Context, KernelSource, Devices),
+  {ok, Kernel} = cl_util:build_kernel("mmult", Context, KernelSource, Devices),
   BufferDescriptors = cl_util:create_buffers(Context, KernelDataDescriptors),
 
   CommandQueues = 
     lists:map(
       fun (Device) ->
-	  cl:create_command_queue(Context, Device)
+	  {ok, Queue} = cl:create_queue(Context, Device, []),
+	  Queue
       end, Devices
      ),
   
