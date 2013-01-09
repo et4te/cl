@@ -19,10 +19,6 @@ matA() ->
   << <<X:32/native-float>> || X <- lists:seq(1, ?A_DIM) >>.
 matB() ->
   << <<X:32/native-float>> || X <- lists:seq(1, ?B_DIM) >>.
-widthA() ->
-  << <<X:32/integer>> || X <- [1024] >>.
-widthB() ->
-  << <<X:32/integer>> || X <- [1024] >>.
 
 matC() ->
   << <<X:32/native-float>> || X <- lists:seq(1, ?C_DIM) >>.
