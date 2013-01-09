@@ -4,8 +4,8 @@
 
 -include("../include/cl.hrl").
 
--define(GLOBAL_DIM, 1024).
--define(LOCAL_DIM, 16).
+-define(GLOBAL_WORK_SIZE, 1024).
+-define(LOCAL_WORK_SIZE, 16).
 
 %%------------------------------------------------------------------------------
 test() ->
@@ -35,28 +35,44 @@ test() ->
   
   lists:foreach(
     fun (CommandQueue) ->
-	execute_kernel_directives(CommandQueue, Kernel, I, O)
+	{ok, E} = execute_kernel_directives(CommandQueue, Kernel, I, O),
+	cl:wait(E)
     end, CommandQueues
    ).
 
 execute_kernel_directives(Queue, Kernel, InDescriptors, OutDescriptors) ->  
   io:format("Executing kernel directives...~n"),
-  MemI = cl_data:buffer_mem(InDescriptors),
-  MemO = cl_data:buffer_mem(OutDescriptors),
 
-  io:format("MemI = ~p~n", [MemI]),
-  io:format("MemO = ~p~n", [MemO]),
+  KernelIArgs = cl_data:kernel_args(InDescriptors),
+  KernelOArgs = cl_data:kernel_args(OutDescriptors),
+
+  io:format("KernelIArgs = ~p~n", [KernelIArgs]),
+  io:format("KernelOArgs = ~p~n", [KernelOArgs]),
 
   io:format("Calling enqueue write buffers...~n"),
-  {ok, Event1} = cl_util:enqueue_write_buffers(Queue, InDescriptors, []),
-  io:format("Setting kernel arguments...~n"),
-  cl_util:set_kernel_args(Kernel, MemI ++ MemO),
+  {ok, E1} = cl_util:enqueue_write_buffers(Queue, InDescriptors, []),
+
+  io:format("Setting kernel arguments... (~p)~n", [KernelIArgs ++ KernelOArgs]),
+  cl_util:set_kernel_args(Kernel, KernelIArgs ++ KernelOArgs),
+
   io:format("Calling enqueue nd range...~n"),
-  {ok, Event2} = cl:enqueue_nd_range_kernel(Queue, Kernel, 
-					    [?GLOBAL_DIM, ?GLOBAL_DIM], 
-					    [?LOCAL_DIM, ?LOCAL_DIM], [Event1]),
+  {ok, E2} = cl:enqueue_nd_range_kernel(Queue, Kernel,
+					[?GLOBAL_WORK_SIZE, ?GLOBAL_WORK_SIZE],
+					[?LOCAL_WORK_SIZE, ?LOCAL_WORK_SIZE],
+					[]),
+
   io:format("Calling enqueue read buffers...~n"),
-  {ok, Event3} = cl_util:enqueue_read_buffers(Queue, OutDescriptors, [Event2]),
-  cl:flush(Queue).
+  {ok, E3} = cl_util:enqueue_read_buffers(Queue, OutDescriptors, [E2]),
+
+  ok = cl:flush(Queue),
+
+  io:format("Queue flushed...~n"),
+
+  io:format("E1 = ~p~n", [cl:wait(E1)]),
+  io:format("E2 = ~p~n", [cl:wait(E2)]),
+  io:format("E3 = ~p~n", [cl:wait(E3)]),
+
+  {ok, E3}.
+
   
 
