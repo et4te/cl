@@ -48,11 +48,11 @@ create_buffers(Context, KernelParameters) ->
 %%------------------------------------------------------------------------------
 %% @doc Enqueues a list of write buffers to a command queue.
 %%------------------------------------------------------------------------------
-enqueue_write_buffers(Queue, BufferDescriptors) ->
+enqueue_write_buffers(Queue, BufferDescriptors, Events) ->
   WriteBuffers =
     lists:map(
       fun ({buffer_desc, Buffer, Data, DataSize}) ->
-	  cl:enqueue_write_buffer(Queue, Buffer, 0, DataSize, Data, [])
+	  cl:enqueue_write_buffer(Queue, Buffer, 0, DataSize, Data, Events)
       end, BufferDescriptors
      ),
   lists:last(WriteBuffers).
@@ -60,41 +60,38 @@ enqueue_write_buffers(Queue, BufferDescriptors) ->
 %%------------------------------------------------------------------------------
 %% @doc Enqueues a list of read buffers to a command queue.
 %%------------------------------------------------------------------------------
-enqueue_read_buffers(Queue, BufferDescriptors) ->
+enqueue_read_buffers(Queue, BufferDescriptors, Events) ->
   lists:foreach(
     fun ({buffer_desc, Buffer, Data, DataSize}) ->
-	cl:enqueue_read_buffer(Queue, Buffer, 0, DataSize, Data, [])
+	cl:enqueue_read_buffer(Queue, Buffer, 0, DataSize, Events)
     end, BufferDescriptors
-   ),
-  cl:flush(Queue).
+   ).
 
 %%------------------------------------------------------------------------------
 %% @doc Builds a kernel.
 %%------------------------------------------------------------------------------
 build_kernel(Label, Context, Source, Devices) ->
   {ok, Program} = cl:create_program_with_source(Context, Source),
-
-  {ok, Info} = cl:get_program_info(Program),
-  io:format("Program Info: ~p\n", [Info]),
+  io:format("Program created successfully, building...~n"),
 
   case cl:build_program(Program, Devices, "") of
     ok ->
       lists:foreach(
 	fun (Device) ->
 	    {ok, BuildInfo} = cl:get_program_build_info(Program, Device),
-	    io:format("Build Info @ ~w: ~p\n", [Device, BuildInfo])
+	    io:format(" * Built on device ~w:~n  ~p~n", [Device, BuildInfo])
 	end, Devices
        );
     Error ->
-      io:format("\n\nKernel Build Error: ~p\n\n", [Error]),
       lists:foreach(
 	fun (Device) ->
 	    {ok, BuildInfo} = cl:get_program_build_info(Program, Device),
-	    io:format("Build Info @ ~w: ~p\n", [Device, BuildInfo])
+	    io:format(" * Build error ~w:~n  ~p~n", [Device, BuildInfo])
 	end, Devices
        )
   end,
-  
+
+  io:format("Build succeeded, creating kernel...~n"),
   {ok, Kernel} = cl:create_kernel(Program, Label),
   Kernel.
 
