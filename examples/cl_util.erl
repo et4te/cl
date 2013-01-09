@@ -39,6 +39,28 @@ current_machine() ->
    ).
 
 %%------------------------------------------------------------------------------
+%% @doc Get all the gpu devices.
+%%------------------------------------------------------------------------------
+gpus() ->
+  cl:get_device_ids(undefined, gpu).
+
+%%------------------------------------------------------------------------------
+%% @doc Get all the cpu devices.
+%%------------------------------------------------------------------------------
+cpus() ->
+  cl:get_device_ids(undefined, cpu).
+
+%%------------------------------------------------------------------------------
+%% @doc Get all devices back in a way that can be distinguished.
+%%------------------------------------------------------------------------------
+devices() ->
+  {ok, GpuDevices} = gpus(),
+  {ok, CpuDevices} = cpus(),
+  Gpus = [{gpu_device, Gpu} || Gpu <- GpuDevices],
+  Cpus = [{cpu_device, Cpu} || Cpu <- CpuDevices],
+  Gpus ++ Cpus.
+
+%%------------------------------------------------------------------------------
 %% @doc Create a set of buffers in main mem from a list of kernel parameters.
 %%------------------------------------------------------------------------------
 create_buffers(Context, KernelParameters) ->
@@ -123,6 +145,22 @@ release(Program, Kernel, Queues, I, O) ->
   [cl:release_queue(X) || X <- Queues],
   cl:release_kernel(Kernel),
   cl:release_program(Program).
+
+%%------------------------------------------------------------------------------
+%% @doc Create a queue per device.
+%%------------------------------------------------------------------------------
+one_queue_per_device(Context, Devices, Events) ->
+  lists:map(
+    fun ({gpu_device, Device}) ->
+        io:format("Device ~p~n", [Device]),
+        {ok, Queue} = cl:create_queue(Context, Device, Events),
+        Queue;
+        ({cpu_device, Device}) ->
+        io:format("Device ~p~n", [Device]),
+        {ok, Queue} = cl:create_queue(Context, Device, Events),
+        Queue
+    end, Devices
+   ).
 
 %%------------------------------------------------------------------------------
 %% @doc Sets the arguments passed to the kernel before it is executed.
