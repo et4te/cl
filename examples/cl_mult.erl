@@ -4,8 +4,8 @@
 
 -include("../include/cl.hrl").
 
--define(GLOBAL_WORK_SIZE, 1024).
--define(LOCAL_WORK_SIZE, 16).
+-define(GLOBAL_WORK_SIZE, 4).
+-define(LOCAL_WORK_SIZE, 1).
 
 %%------------------------------------------------------------------------------
 %% Sets up the OpenCL context, creates input and output buffers, ...
@@ -31,14 +31,14 @@ test() ->
   Queues = 
     lists:map(
       fun (Device) ->
-	  {ok, Queue} = cl:create_queue(Cl#cl.context, Device, []),
-	  Queue
+          {ok, Queue} = cl:create_queue(Cl#cl.context, Device, []),
+          Queue
       end, Cl#cl.devices
      ),
   
   lists:foreach(
     fun (Queue) ->
-	execute_kernel_directives(Queue, Kernel, I, O)
+        execute_kernel_directives(Queue, Kernel, I, O)
     end, Queues
    ),
 
@@ -61,11 +61,11 @@ execute_kernel_directives(Queue, Kernel, InDescriptors, OutDescriptors) ->
   io:format("Setting kernel arguments... (~p)~n", [KernelIArgs ++ KernelOArgs]),
   cl_util:set_kernel_args(Kernel, KernelIArgs ++ KernelOArgs),
 
-  io:format("Calling enqueue nd range...~n"),
+  io:format("Calling EnqueueNDRange...~n"),
   {ok, E2} = cl:enqueue_nd_range_kernel(Queue, Kernel,
-					[?GLOBAL_WORK_SIZE, ?GLOBAL_WORK_SIZE],
-					[?LOCAL_WORK_SIZE, ?LOCAL_WORK_SIZE],
-					[]),
+                                        [?GLOBAL_WORK_SIZE, ?GLOBAL_WORK_SIZE],
+                                        [?LOCAL_WORK_SIZE, ?LOCAL_WORK_SIZE],
+                                        [E1]),
 
   io:format("Calling enqueue read buffers...~n"),
   {ok, E3} = cl_util:enqueue_read_buffers(Queue, OutDescriptors, [E2]),
@@ -76,5 +76,8 @@ execute_kernel_directives(Queue, Kernel, InDescriptors, OutDescriptors) ->
 
   io:format("E1 = ~p~n", [cl:wait(E1)]),
   io:format("E2 = ~p~n", [cl:wait(E2)]),
-  {ok, E3Res} = cl:wait(E3),
-  E3Res.
+
+  {ok, E3Bin} = cl:wait(E3),
+
+  io:format("E3 Data = ~p~n", [cl_util:to_list(E3Bin)]).
+
