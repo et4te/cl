@@ -13,28 +13,28 @@ current_machine() ->
   {ok, PlatformIds} = cl:get_platform_ids(),
   lists:foreach(
     fun (PlatformId) ->
-	io:format("Platform~n  ~p~n", [PlatformId])
+        io:format("Platform~n  ~p~n", [PlatformId])
     end, PlatformIds
    ),
   
   DeviceIds = 
     lists:map(
       fun (PlatformId) ->
-	  {ok, DeviceId} = cl:get_device_ids(PlatformId, all),
-	  DeviceId
+          {ok, DeviceId} = cl:get_device_ids(PlatformId, all),
+          DeviceId
       end, PlatformIds
      ),
 
   lists:foreach(
     fun (DeviceId) ->
-	io:format("Device ~p~n", [DeviceId])
+        io:format("Device ~p~n", [DeviceId])
     end, DeviceIds
    ),
 
   Contexts = [cl:create_context(Id) || Id <- DeviceIds],
   lists:foreach(
     fun (Context) ->
-	io:format("Context ~p~n", [Context])
+        io:format("Context ~p~n", [Context])
     end, Contexts
    ).
 
@@ -95,23 +95,24 @@ build_kernel(Label, Context, Source, Devices) ->
   case cl:build_program(Program, Devices, "") of
     ok ->
       lists:foreach(
-	fun (Device) ->
-	    {ok, BuildInfo} = cl:get_program_build_info(Program, Device),
-	    io:format(" * Built on device ~w:~n  ~p~n", [Device, BuildInfo])
-	end, Devices
-       );
-    _Error ->
-      lists:foreach(
-	fun (Device) ->
-	    {ok, BuildInfo} = cl:get_program_build_info(Program, Device),
-	    io:format(" * Build error ~w:~n  ~p~n", [Device, BuildInfo])
-	end, Devices
-       )
-  end,
+        fun (Device) ->
+            {ok, BuildInfo} = cl:get_program_build_info(Program, Device),
+            io:format(" * Built on device ~w:~n  ~p~n", [Device, BuildInfo])
+        end, Devices
+       ),
 
-  io:format("Build succeeded, creating kernel...~n"),
-  {ok, Kernel} = cl:create_kernel(Program, Label),
-  {ok, Program, Kernel}.
+      io:format("Build succeeded, creating kernel ~p... ~n", [Label]),
+      {ok, Kernel} = cl:create_kernel(Program, Label),
+      {ok, Program, Kernel};
+    Error ->
+      lists:foreach(
+        fun (Device) ->
+            {ok, BuildInfo} = cl:get_program_build_info(Program, Device),
+            io:format(" * Build error ~w:~n  ~p~n", [Device, BuildInfo])
+        end, Devices
+       ),
+      Error
+  end.
 
 %%------------------------------------------------------------------------------
 %% @doc Releases the kernel, buffers, queues etc
