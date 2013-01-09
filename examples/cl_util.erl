@@ -39,30 +39,31 @@ current_machine() ->
    ).
 
 %%------------------------------------------------------------------------------
-%% @doc Convenience function to represent generic data to be provided to OpenCL.
+%% @doc Create a set of buffers in main mem from a list of kernel parameters.
 %%------------------------------------------------------------------------------
-data_desc(Data, TypeSize, Opt) ->
-  DataSize = byte_size(Data),
-  {data_desc, Data, DataSize, DataSize div TypeSize, Opt}.
-
-%%------------------------------------------------------------------------------
-%% @doc Create a set of buffers in main mem from a list of data descriptors.
-%%------------------------------------------------------------------------------
-create_buffer_desc(Context, Data, DataSize, Opt) ->
-  {ok, Buffer} = cl:create_buffer(Context, Opt, DataSize),
-  {buffer_desc, Buffer,  Data, DataSize}.
-
-create_buffers(Context, DataDescriptors) ->
-  [create_buffer_desc(Context, Data, DataSize, Opt) ||
-    {data_desc, Data, DataSize, ByteSize, Opt} <- DataDescriptors].
+create_buffers(Context, KernelParameters) ->
+  [cl_data:create_buffer(Context, Data, TypeSize, Opt) ||
+    {Data, TypeSize, Opt} <- KernelParameters].
 
 %%------------------------------------------------------------------------------
 %% @doc Enqueues a list of write buffers to a command queue.
 %%------------------------------------------------------------------------------
 enqueue_write_buffers(Queue, BufferDescriptors) ->
+  WriteBuffers =
+    lists:map(
+      fun ({buffer_desc, Buffer, Data, DataSize}) ->
+	  cl:enqueue_write_buffer(Queue, Buffer, 0, DataSize, Data, [])
+      end, BufferDescriptors
+     ),
+  lists:last(WriteBuffers).
+
+%%------------------------------------------------------------------------------
+%% @doc Enqueues a list of read buffers to a command queue.
+%%------------------------------------------------------------------------------
+enqueue_read_buffers(Queue, BufferDescriptors) ->
   lists:foreach(
     fun ({buffer_desc, Buffer, Data, DataSize}) ->
-	cl:enqueue_write_buffer(Queue, Buffer, 0, DataSize, Data, [])
+	cl:enqueue_read_buffer(Queue, Buffer, 0, DataSize, Data, [])
     end, BufferDescriptors
    ),
   cl:flush(Queue).
@@ -94,12 +95,16 @@ build_kernel(Label, Context, Source, Devices) ->
        )
   end,
   
-  cl:create_kernel(Program, Label).
+  {ok, Kernel} = cl:create_kernel(Program, Label),
+  Kernel.
 
 %%------------------------------------------------------------------------------
 %% @doc Sets the arguments passed to the kernel before it is executed.
 %%------------------------------------------------------------------------------
-set_kernel_args(Kernel, [], N) ->
+set_kernel_args(Kernel, Args) ->
+  set_kernel_args(Kernel, Args, 0).
+
+set_kernel_args(_Kernel, [], _N) ->
   ok;
 set_kernel_args(Kernel, [Arg|Args], N) ->
   cl:set_kernel_arg(Kernel, N, Arg),
