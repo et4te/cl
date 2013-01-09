@@ -111,7 +111,17 @@ build_kernel(Label, Context, Source, Devices) ->
 
   io:format("Build succeeded, creating kernel...~n"),
   {ok, Kernel} = cl:create_kernel(Program, Label),
-  Kernel.
+  {ok, Program, Kernel}.
+
+%%------------------------------------------------------------------------------
+%% @doc Releases the kernel, buffers, queues etc
+%%------------------------------------------------------------------------------
+release(Program, Kernel, Queues, I, O) ->
+  [cl:release_mem_object(X) || {buffer_desc, X, _, _} <- I, not is_atom(X)],
+  [cl:release_mem_object(X) || {buffer_desc, X, _, _} <- O],
+  [cl:release_queue(X) || X <- Queues],
+  cl:release_kernel(Kernel),
+  cl:release_program(Program).
 
 %%------------------------------------------------------------------------------
 %% @doc Sets the arguments passed to the kernel before it is executed.
