@@ -13,7 +13,7 @@ current_machine() ->
   {ok, PlatformIds} = cl:get_platform_ids(),
   lists:foreach(
     fun (PlatformId) ->
-	io:format("Platform ~p~n", [PlatformId])
+	io:format("Platform~n  ~p~n", [PlatformId])
     end, PlatformIds
    ),
   
@@ -42,30 +42,48 @@ current_machine() ->
 %% @doc Create a set of buffers in main mem from a list of kernel parameters.
 %%------------------------------------------------------------------------------
 create_buffers(Context, KernelParameters) ->
-  [cl_data:create_buffer(Context, Data, TypeSize, Opt) ||
-    {Data, TypeSize, Opt} <- KernelParameters].
+  create_buffers(Context, KernelParameters, []).
+
+create_buffers(_Context, [], Acc) ->
+  lists:reverse(Acc);
+create_buffers(Context, [KernelParameter|Rest], Acc) ->
+  case KernelParameter of
+    {Data, TypeSize, Opt} ->
+      A = cl_data:create_buffer(Context, Data, TypeSize, Opt),
+      create_buffers(Context, Rest, [A|Acc]);
+    Atom when is_integer(Atom) ->
+      A = {ok, Atom},
+      create_buffers(Context, Rest, [A|Acc]);
+    _ ->
+      A = [{error, erroneous_type}],
+      create_buffers(Context, Rest, [A|Acc])
+  end.
 
 %%------------------------------------------------------------------------------
 %% @doc Enqueues a list of write buffers to a command queue.
 %%------------------------------------------------------------------------------
 enqueue_write_buffers(Queue, BufferDescriptors, Events) ->
-  WriteBuffers =
-    lists:map(
-      fun ({buffer_desc, Buffer, Data, DataSize}) ->
-	  cl:enqueue_write_buffer(Queue, Buffer, 0, DataSize, Data, Events)
-      end, BufferDescriptors
-     ),
-  lists:last(WriteBuffers).
+  enqueue_write_buffers(Queue, BufferDescriptors, Events, []).
+
+enqueue_write_buffers(_Queue, [], _Es, E) ->
+  {ok, E};
+enqueue_write_buffers(Queue, [{buffer_desc, Mem, Data, DataSize}|Rest], Es, _E0) ->
+  {ok, E1} = cl:enqueue_write_buffer(Queue, Mem, 0, DataSize, Data, Es),
+  enqueue_write_buffers(Queue, Rest, Es, E1);
+enqueue_write_buffers(Queue, [{ok, _Atom}|Rest], Es, E) ->
+  enqueue_write_buffers(Queue, Rest, Es, E).
 
 %%------------------------------------------------------------------------------
 %% @doc Enqueues a list of read buffers to a command queue.
 %%------------------------------------------------------------------------------
 enqueue_read_buffers(Queue, BufferDescriptors, Events) ->
-  lists:foreach(
-    fun ({buffer_desc, Buffer, Data, DataSize}) ->
-	cl:enqueue_read_buffer(Queue, Buffer, 0, DataSize, Events)
-    end, BufferDescriptors
-   ).
+  enqueue_read_buffers(Queue, BufferDescriptors, Events, []).
+
+enqueue_read_buffers(_Queue, [], _Es, E) ->
+  {ok, E};
+enqueue_read_buffers(Queue, [{buffer_desc, Mem, _, DataSize}|Rest], Es, _E0) ->
+  {ok, E1} = cl:enqueue_read_buffer(Queue, Mem, 0, DataSize, Es),
+  enqueue_read_buffers(Queue, Rest, Es, E1).
 
 %%------------------------------------------------------------------------------
 %% @doc Builds a kernel.
@@ -82,7 +100,7 @@ build_kernel(Label, Context, Source, Devices) ->
 	    io:format(" * Built on device ~w:~n  ~p~n", [Device, BuildInfo])
 	end, Devices
        );
-    Error ->
+    _Error ->
       lists:foreach(
 	fun (Device) ->
 	    {ok, BuildInfo} = cl:get_program_build_info(Program, Device),
